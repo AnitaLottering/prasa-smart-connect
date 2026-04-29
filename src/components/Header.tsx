@@ -18,6 +18,7 @@ const MORE = [
   { to: "/safety", label: "Safety & SOS" },
   { to: "/lost-found", label: "Lost & Found" },
   { to: "/saved", label: "My Routes" },
+  { to: "/admin", label: "Admin" },
 ] as const;
 
 export function Header() {
