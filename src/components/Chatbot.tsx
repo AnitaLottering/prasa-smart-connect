@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Bot, User, Mic, MicOff } from "lucide-react";
 import { SCHEDULES, ALERTS, searchTrains, STATIONS } from "@/data/prasa";
 import { api } from "@/lib/api";
+import { crowdingAdvice } from "@/data/extras";
 
 interface ChatMsg {
   role: "user" | "assistant";
@@ -118,6 +119,18 @@ function generateReply(text: string): string {
     }
 
     return "Which stations are you travelling between? E.g. \"Cape Town to Bellville\"";
+  }
+
+  if (/(coach|crowd|busy|full|space|carriage|which coach|best coach|least busy)/.test(lower)) {
+    const lineMatch = ["Southern Line", "Northern Line", "Central Line", "Cape Flats Line"].find(
+      (l) => lower.includes(l.toLowerCase()),
+    );
+    const timeMatch = lower.match(/(\d{1,2}:\d{2})/);
+    const { from } = detectStations(text);
+    const resolvedLine = lineMatch ??
+      (from ? SCHEDULES.find((s) => s.stops.map(x => x.toLowerCase()).includes(from.toLowerCase()))?.line : undefined) ??
+      "Southern Line";
+    return crowdingAdvice(resolvedLine, timeMatch?.[1]);
   }
 
   if (/(station|stop|line|network)/.test(lower)) {

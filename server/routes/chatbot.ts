@@ -4,6 +4,7 @@ import { ChatbotSchema } from "../validate";
 import { scrapeTrains } from "../scraper";
 import { supabase } from "../db";
 import { SCHEDULES, ALERTS, STATIONS, searchTrains } from "../../src/data/prasa";
+import { getCrowding, bestCoach, crowdingAdvice } from "../../src/data/extras";
 
 const router = Router();
 
@@ -235,6 +236,19 @@ function smartRuleBasedReply(message: string, updates: any[]): string {
     }
 
     return "Which stations are you travelling between? E.g. \"Cape Town to Bellville\"";
+  }
+
+  // Coach / crowding
+  if (/(coach|crowd|busy|full|space|carriage|which coach|best coach|least busy)/.test(lower)) {
+    const lineMatch = ["Southern Line", "Northern Line", "Central Line", "Cape Flats Line"].find(
+      (l) => lower.includes(l.toLowerCase()),
+    );
+    const timeMatch = lower.match(/(\d{1,2}:\d{2})/);
+    const { from } = detectStations(message);
+    const resolvedLine = lineMatch ??
+      (from ? SCHEDULES.find((s) => s.stops.map(x => x.toLowerCase()).includes(from.toLowerCase()))?.line : undefined) ??
+      "Southern Line";
+    return crowdingAdvice(resolvedLine, timeMatch?.[1]);
   }
 
   // Stations list

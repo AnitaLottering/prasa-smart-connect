@@ -102,25 +102,52 @@ export function planTrip(from: string, to: string, afterTime?: string): TripPlan
 
 export { minToTime };
 
-// Train coach crowding (deterministic mock based on trainNo + hour)
+// ── Crowding engine (rule-based, no random) ──────────────────────────────────
 export interface CoachLoad {
   coach: number;
   load: number; // 0-100
   level: "Low" | "Moderate" | "High" | "Full";
 }
 
-function seedRand(seed: number) {
-  return () => {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
-  };
+// Base crowding by line at peak vs off-peak
+const LINE_BASE: Record<string, { peak: number; offPeak: number }> = {
+  "Central Line":    { peak: 92, offPeak: 55 },
+  "Cape Flats Line": { peak: 85, offPeak: 50 },
+  "Southern Line":   { peak: 75, offPeak: 40 },
+  "Northern Line":   { peak: 70, offPeak: 38 },
+};
+
+// Coach position bias: front/rear coaches fill first at terminus
+// Values are load offsets per coach position (1=front, 8=rear)
+const COACH_BIAS = [12, 8, 4, 0, -2, -6, -10, -14];
+
+function isPeak(hour: number, dow: number): boolean {
+  if (dow === 0 || dow === 6) return false; // weekend
+  return (hour >= 6 && hour < 9) || (hour >= 16 && hour < 19);
 }
 
-export function getCrowding(trainNo: string, coaches = 8): CoachLoad[] {
-  const seed = parseInt(trainNo, 10) + new Date().getHours();
-  const rand = seedRand(seed);
+export function getCrowding(
+  trainNo: string,
+  coaches = 8,
+  line?: string,
+  departureTime?: string,
+): CoachLoad[] {
+  const now = new Date();
+  let hour = now.getHours();
+  const dow = now.getDay();
+
+  if (departureTime) {
+    const [h] = departureTime.split(":").map(Number);
+    hour = h;
+  }
+
+  const resolvedLine = line ?? SCHEDULES.find((s) => s.trainNo === trainNo)?.line ?? "Southern Line";
+  const base = LINE_BASE[resolvedLine] ?? LINE_BASE["Southern Line"];
+  const baseLoad = isPeak(hour, dow) ? base.peak : base.offPeak;
+
   return Array.from({ length: coaches }, (_, i) => {
-    const load = Math.round(25 + rand() * 70);
+    const bias = COACH_BIAS[i] ?? 0;
+    const load = Math.min(100, Math.max(5, baseLoad + bias));
     const level: CoachLoad["level"] =
       load < 40 ? "Low" : load < 65 ? "Moderate" : load < 85 ? "High" : "Full";
     return { coach: i + 1, load, level };
@@ -129,6 +156,29 @@ export function getCrowding(trainNo: string, coaches = 8): CoachLoad[] {
 
 export function bestCoach(loads: CoachLoad[]): CoachLoad {
   return loads.reduce((a, b) => (a.load < b.load ? a : b));
+}
+
+// Human-readable crowding advice for chatbot
+export function crowdingAdvice(line: string, departureTime?: string): string {
+  const now = new Date();
+  let hour = now.getHours();
+  const dow = now.getDay();
+  if (departureTime) hour = parseInt(departureTime.split(":")[0]);
+
+  const peak = isPeak(hour, dow);
+  const base = LINE_BASE[line] ?? LINE_BASE["Southern Line"];
+  const loads = getCrowding("", 8, line, departureTime);
+  const best = bestCoach(loads);
+
+  return (
+    `**${line} crowding (${peak ? "peak" : "off-peak"}):**\n` +
+    `Overall occupancy ~${peak ? base.peak : base.offPeak}%\n` +
+    `• Coaches 1–2 (front): High — fills first at Cape Town\n` +
+    `• Coaches 3–5 (middle): Moderate\n` +
+    `• Coaches 6–8 (rear): Low — least crowded\n\n` +
+    `✅ **Best coach: ${best.coach}** (${best.load}% full, ${best.level} occupancy)\n` +
+    `Tip: ${peak ? "It's peak hour — board early and move to rear coaches." : "Off-peak — most coaches have space."}`
+  );
 }
 
 // News
