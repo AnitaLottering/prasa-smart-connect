@@ -1,5 +1,4 @@
 import serverless from "serverless-http";
-import "dotenv/config";
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { randomUUID, createHmac, timingSafeEqual } from "crypto";
@@ -24,8 +23,100 @@ import { SCHEDULES as SEED_SCHEDULES, ALERTS as SEED_ALERTS } from "../../src/da
 import type { TrainSchedule, ServiceAlert } from "../../src/data/prasa";
 import type { NewsItem } from "../../src/data/extras";
 
-let schedules: TrainSchedule[] = [...SEED_SCHEDULES];
-let alerts: ServiceAlert[]     = [...SEED_ALERTS];
+// Inline seed data — avoids esbuild issues with dynamic helper functions in prasa.ts
+const SOUTHERN_DOWN = ["Cape Town","Woodstock","Salt River","Observatory","Mowbray","Rondebosch","Newlands","Claremont","Wynberg","Retreat","Muizenberg","Fish Hoek","Simon's Town"];
+const SOUTHERN_UP   = [...SOUTHERN_DOWN].reverse();
+const NORTHERN_DOWN = ["Cape Town","Woodstock","Salt River","Pinelands","Goodwood","Parow","Bellville","Stellenbosch"];
+const NORTHERN_UP   = [...NORTHERN_DOWN].reverse();
+const CENTRAL_DOWN  = ["Cape Town","Woodstock","Salt River","Langa","Nyanga","Philippi","Mitchells Plain","Khayelitsha"];
+const CENTRAL_UP    = [...CENTRAL_DOWN].reverse();
+const CF_DOWN = ["Cape Town","Salt River","Pinelands","Nyanga","Philippi","Retreat"];
+const CF_UP   = [...CF_DOWN].reverse();
+
+function addMin(t: string, m: number) {
+  const [h, mm] = t.split(":").map(Number);
+  const tot = h * 60 + mm + m;
+  return `${String(Math.floor(tot / 60) % 24).padStart(2,"0")}:${String(tot % 60).padStart(2,"0")}`;
+}
+function mk(id: string, no: string, line: TrainSchedule["line"], stops: string[], dep: string, dur: number, plat: string, status: TrainSchedule["status"] = "On Time", delay?: number): TrainSchedule {
+  const fares: Record<string,number> = {"Southern Line":14.5,"Northern Line":13,"Central Line":12.5,"Cape Flats Line":12};
+  return { id, trainNo: no, line, from: stops[0], to: stops[stops.length-1], departure: dep, arrival: addMin(dep, dur), durationMin: dur, stops, status, delayMin: delay, platform: plat, fare: fares[line] };
+}
+
+let schedules: TrainSchedule[] = [
+  mk("S1","0412","Southern Line",SOUTHERN_DOWN,"05:50",77,"11"),
+  mk("S2","0428","Southern Line",SOUTHERN_DOWN,"06:30",77,"11"),
+  mk("S3","0444","Southern Line",SOUTHERN_DOWN,"07:05",80,"12","Delayed",12),
+  mk("S4","0460","Southern Line",SOUTHERN_DOWN,"08:00",77,"11"),
+  mk("S5","0476","Southern Line",SOUTHERN_DOWN,"09:30",77,"11"),
+  mk("S6","0492","Southern Line",SOUTHERN_DOWN,"12:00",77,"11"),
+  mk("S7","0508","Southern Line",SOUTHERN_DOWN,"15:00",77,"11"),
+  mk("S8","0524","Southern Line",SOUTHERN_DOWN,"17:00",80,"12"),
+  mk("S9","0540","Southern Line",SOUTHERN_DOWN,"18:30",77,"11"),
+  mk("S10","0413","Southern Line",SOUTHERN_UP,"05:00",77,"1"),
+  mk("S11","0429","Southern Line",SOUTHERN_UP,"06:00",77,"1"),
+  mk("S12","0445","Southern Line",SOUTHERN_UP,"07:10",80,"2"),
+  mk("S13","0461","Southern Line",SOUTHERN_UP,"08:15",77,"1"),
+  mk("S14","0477","Southern Line",SOUTHERN_UP,"10:00",77,"1"),
+  mk("S15","0493","Southern Line",SOUTHERN_UP,"12:30",77,"1"),
+  mk("S16","0516","Southern Line",SOUTHERN_UP,"16:42",78,"1"),
+  mk("S17","0532","Southern Line",SOUTHERN_UP,"17:45",77,"2"),
+  mk("S18","0548","Southern Line",SOUTHERN_UP,"19:00",77,"1"),
+  mk("N1","1102","Northern Line",NORTHERN_DOWN,"05:45",65,"5"),
+  mk("N2","1118","Northern Line",NORTHERN_DOWN,"06:30",65,"5"),
+  mk("N3","1134","Northern Line",NORTHERN_DOWN,"07:15",65,"6"),
+  mk("N4","1150","Northern Line",NORTHERN_DOWN,"08:00",65,"5"),
+  mk("N5","1166","Northern Line",NORTHERN_DOWN,"09:00",65,"5"),
+  mk("N6","1182","Northern Line",NORTHERN_DOWN,"12:00",65,"5"),
+  mk("N7","1198","Northern Line",NORTHERN_DOWN,"15:00",65,"5"),
+  mk("N8","1206","Northern Line",NORTHERN_DOWN,"17:15",65,"—","Cancelled"),
+  mk("N9","1214","Northern Line",NORTHERN_DOWN,"18:00",65,"6"),
+  mk("N10","1103","Northern Line",NORTHERN_UP,"05:00",65,"2"),
+  mk("N11","1119","Northern Line",NORTHERN_UP,"06:00",65,"2"),
+  mk("N12","1124","Northern Line",NORTHERN_UP,"07:10",65,"2"),
+  mk("N13","1135","Northern Line",NORTHERN_UP,"08:00",65,"3"),
+  mk("N14","1151","Northern Line",NORTHERN_UP,"09:30",65,"2"),
+  mk("N15","1167","Northern Line",NORTHERN_UP,"12:30",65,"2"),
+  mk("N16","1183","Northern Line",NORTHERN_UP,"15:30",65,"2"),
+  mk("N17","1199","Northern Line",NORTHERN_UP,"17:00",65,"3"),
+  mk("N18","1215","Northern Line",NORTHERN_UP,"18:30",65,"2"),
+  mk("C1","2208","Central Line",CENTRAL_DOWN,"05:30",70,"8"),
+  mk("C2","2224","Central Line",CENTRAL_DOWN,"06:45",70,"8","Delayed",18),
+  mk("C3","2240","Central Line",CENTRAL_DOWN,"07:30",70,"8"),
+  mk("C4","2256","Central Line",CENTRAL_DOWN,"08:30",70,"8"),
+  mk("C5","2272","Central Line",CENTRAL_DOWN,"10:00",70,"8"),
+  mk("C6","2288","Central Line",CENTRAL_DOWN,"12:00",70,"8"),
+  mk("C7","2304","Central Line",CENTRAL_DOWN,"15:00",70,"8"),
+  mk("C8","2320","Central Line",CENTRAL_DOWN,"17:00",70,"8"),
+  mk("C9","2336","Central Line",CENTRAL_DOWN,"18:30",70,"8"),
+  mk("C10","2209","Central Line",CENTRAL_UP,"05:00",70,"4"),
+  mk("C11","2225","Central Line",CENTRAL_UP,"06:00",70,"4"),
+  mk("C12","2241","Central Line",CENTRAL_UP,"07:00",70,"4"),
+  mk("C13","2257","Central Line",CENTRAL_UP,"08:00",70,"4"),
+  mk("C14","2273","Central Line",CENTRAL_UP,"09:30",70,"4"),
+  mk("C15","2289","Central Line",CENTRAL_UP,"12:30",70,"4"),
+  mk("C16","2305","Central Line",CENTRAL_UP,"15:30",70,"4"),
+  mk("C17","2321","Central Line",CENTRAL_UP,"17:00",70,"4"),
+  mk("C18","2337","Central Line",CENTRAL_UP,"18:30",70,"4"),
+  mk("F1","3102","Cape Flats Line",CF_DOWN,"06:00",58,"9"),
+  mk("F2","3118","Cape Flats Line",CF_DOWN,"07:20",58,"9"),
+  mk("F3","3134","Cape Flats Line",CF_DOWN,"08:30",58,"9"),
+  mk("F4","3150","Cape Flats Line",CF_DOWN,"12:00",58,"9"),
+  mk("F5","3166","Cape Flats Line",CF_DOWN,"17:00",58,"9"),
+  mk("F6","3182","Cape Flats Line",CF_DOWN,"18:30",58,"9"),
+  mk("F7","3103","Cape Flats Line",CF_UP,"05:30",58,"7"),
+  mk("F8","3119","Cape Flats Line",CF_UP,"06:30",58,"7"),
+  mk("F9","3135","Cape Flats Line",CF_UP,"07:45",58,"7"),
+  mk("F10","3151","Cape Flats Line",CF_UP,"12:30",58,"7"),
+  mk("F11","3167","Cape Flats Line",CF_UP,"17:30",58,"7"),
+  mk("F12","3183","Cape Flats Line",CF_UP,"19:00",58,"7"),
+];
+
+let alerts: ServiceAlert[] = [
+  { id:"a1", level:"critical", title:"Northern Line: Train 1206 cancelled", message:"The 17:15 from Cape Town to Stellenbosch is cancelled due to signal failure. Next service at 18:00.", line:"Northern Line", postedAt:"2025-04-24T14:10:00Z" },
+  { id:"a2", level:"warning",  title:"Central Line delays of up to 20 minutes", message:"Cable theft between Langa and Nyanga is causing delays. Maintenance teams on site.", line:"Central Line", postedAt:"2025-04-24T12:30:00Z" },
+  { id:"a3", level:"info",     title:"Southern Line weekend works", message:"Engineering work between Muizenberg and Fish Hoek this Sunday from 06:00 to 14:00. Bus shuttles in operation.", line:"Southern Line", postedAt:"2025-04-23T09:00:00Z" },
+];
 
 let news: NewsItem[] = [
   { id: "n1", title: "Central Line returns to full service after upgrade", excerpt: "Following extensive infrastructure rehabilitation, Metrorail Central Line trains now operate at full capacity between Cape Town and Khayelitsha.", category: "Network", date: "2025-04-22" },
