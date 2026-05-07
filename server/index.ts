@@ -104,6 +104,26 @@ app.use("/api/admin/update", requireAuth, adminUpdateRouter);
 app.use("/api/chatbot", chatbotRouter);
 app.use("/api/tickets", ticketsRouter);
 app.use("/api/sentiment", sentimentRouter);
+
+// ── HuggingFace proxy (works in both dev and production) ──────────────────────
+app.post("/api/hf-proxy", async (req, res) => {
+  const hfKey = process.env.HUGGINGFACE_API_KEY;
+  if (!hfKey) { res.status(500).json({ error: "HF key not configured" }); return; }
+  try {
+    const hfRes = await fetch(
+      "https://router.huggingface.co/hf-inference/models/j-hartmann/emotion-english-distilroberta-base",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${hfKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(req.body),
+      }
+    );
+    const data = await hfRes.json();
+    res.status(hfRes.status).json(data);
+  } catch (err) {
+    res.status(500).json({ error: "HF request failed" });
+  }
+});
 app.use("/api/lost-found", lostFoundRouter);
 app.use("/api/safety", safetyRouter);
 

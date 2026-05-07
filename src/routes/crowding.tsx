@@ -90,23 +90,15 @@ const coachSentiment = useMemo(() => {
     // ⚡ VADER (local)
     const vaderResult = analyzeWithVader(text);
 
-    // 🤖 Hugging Face (via proxy)
-    const token = import.meta.env.VITE_HF_API_TOKEN;
-
-    const hfResp = await fetch(
-      "/hf-api/j-hartmann/emotion-english-distilroberta-base",
-      {
+    // 🤖 Hugging Face (via backend proxy)
+    const hfResp = await fetch("/api/hf-proxy", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           inputs: text,
           options: { wait_for_model: true },
         }),
-      }
-    );
+      });
 
     if (!hfResp.ok) {
       throw new Error(`HF error: ${hfResp.status}`);
