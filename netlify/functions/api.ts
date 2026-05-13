@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { randomUUID, createHmac, timingSafeEqual } from "crypto";
 import { supabase } from "../../server/db";
+import { sendEmail } from "../../server/mailer";
 
 const isSupabaseConfigured =
   !!process.env.SUPABASE_URL &&
@@ -247,18 +248,23 @@ app.patch(["/api/admin/lost-found/:id", "/admin/lost-found/:id"], requireAuth, a
   // If status changed to "matched", send email notification to user
   if (status === "matched" && item.status !== "matched") {
     try {
-      // Simple email sending using EmailJS service
-      const emailData = {
-        to_email: item.contact,
+      await sendEmail({
+        to: item.contact,
         subject: "Item Found - PRASA Lost & Found",
-        message: `Great News! Your Lost Item Has Been Found\n\nDear Passenger,\n\nWe're pleased to inform you that an item matching your description has been found!\n\nItem Details:\nReference ID: ${item.contact_ref}\nItem: ${item.item}\nStation: ${item.station}\nDate Reported: ${new Date(item.date).toLocaleDateString('en-ZA')}\n\nNext Steps:\n1. Bring your Reference ID: ${item.contact_ref}\n2. Bring proof of ownership (receipt, photo, or detailed description)\n3. Visit ${item.station} station during business hours\n4. Ask for the Lost & Found office\n\nImportant: Please collect your item within 30 days. Items not collected will be donated to charity.\n\nStation operating hours: Monday to Friday 06:00 - 18:00, Saturday 07:00 - 15:00\n\nBest regards,\nPRASA Lost & Found Team`
-      };
-      
-      // In production, you would integrate with your email service here
-      console.log(`Would send found item notification to ${item.contact} for ref ${item.contact_ref}`);
+        html: "",
+        templateId: process.env.EMAILJS_FOUND_TEMPLATE_ID,
+        templateParams: {
+          to_email: item.contact,
+          contact_ref: item.contact_ref,
+          item: item.item,
+          station: item.station,
+          date: new Date(item.date).toLocaleDateString("en-ZA"),
+          found_date: new Date().toLocaleDateString("en-ZA"),
+        },
+      });
+      console.log(`Sent found item notification to ${item.contact} for ref ${item.contact_ref}`);
     } catch (emailError) {
-      console.error("Failed to send found item notification:", emailError);
-      // Don't fail the request if email fails
+      console.error("Failed to send found item notification:", (emailError as Error).message);
     }
   }
 
