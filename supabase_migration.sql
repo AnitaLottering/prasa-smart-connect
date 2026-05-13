@@ -64,3 +64,12 @@ create table if not exists coach_feedback (
 create index if not exists idx_coach_feedback_submitted_at on coach_feedback (submitted_at desc);
 create index if not exists idx_coach_feedback_coach on coach_feedback (coach);
 create index if not exists idx_coach_feedback_line on coach_feedback (line);
+
+-- Station search cache (Google Places results)
+create table if not exists station_cache (
+  query      text primary key,
+  results    jsonb not null,
+  cached_at  timestamptz default now()
+);
+
+create index if not exists idx_station_cache_cached_at on station_cache (cached_at desc);

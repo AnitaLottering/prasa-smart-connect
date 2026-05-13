@@ -252,7 +252,47 @@ export const api = {
       body: JSON.stringify({ status }),
     }),
 
-  // ── Safety Incidents ────────────────────────────────────────────────────────
+  // ── Station Search (Google Places → Supabase cache) ───────────────────────
+  searchStations: (q: string) =>
+    apiFetch<{
+      results: {
+        name: string;
+        place_id: string;
+        address: string;
+        lat: number;
+        lng: number;
+        open_now: boolean | null;
+        rating: number | null;
+        status: string;
+      }[];
+      source: "cache" | "google";
+    }>(`/stations/search?q=${encodeURIComponent(q)}`),
+
+  stationDetails: (placeId: string) =>
+    apiFetch<{
+      name: string;
+      formatted_address: string;
+      opening_hours: { open_now: boolean; weekday_text: string[] } | null;
+      rating: number | null;
+      formatted_phone_number: string | null;
+      geometry: { location: { lat: number; lng: number } };
+    }>(`/stations/details/${placeId}`),
+
+  // ── Live Trains (scraped) ────────────────────────────────────────────────────
+  liveTrains: () =>
+    apiFetch<{
+      train_no: string;
+      from_station: string;
+      to_station: string;
+      departure: string;
+      arrival: string;
+      status: string;
+      line: string;
+      delay_min: number;
+      reason: string;
+      scraped_at: string;
+    }[]>("/live-trains"),
+
   reportSafetyIncident: (data: { type: string; station: string; details: string }) =>
     apiFetch<{
       id: string;

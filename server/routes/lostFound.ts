@@ -68,7 +68,7 @@ router.post("/", async (req, res) => {
       to: contact.trim(),
       subject: "Lost Item Report Confirmation - PRASA",
       html: "", // Not used when templateId is provided
-      templateId: "template_lost_confirm",
+      templateId: process.env.EMAILJS_TEMPLATE_ID,
       templateParams: {
         to_email: contact.trim(),
         contact_ref: contact_ref,
