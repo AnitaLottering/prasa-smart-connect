@@ -5,6 +5,7 @@ import { randomUUID, createHmac, timingSafeEqual } from "crypto";
 import cron from "node-cron";
 import { supabase } from "./db";
 import { runScrape } from "./scraper";
+import { sendEmail } from "./mailer";
 
 const isSupabaseConfigured = () =>
   !!process.env.SUPABASE_URL &&
@@ -21,6 +22,7 @@ import ticketsRouter from "./routes/tickets";
 import sentimentRouter from "./routes/sentiment";
 import lostFoundRouter from "./routes/lostFound";
 import safetyRouter from "./routes/safety";
+import stationSearchRouter from "./routes/stationSearch";
 
 // ── In-memory store (schedules / alerts / news) ───────────────────────────────
 import { SCHEDULES as SEED_SCHEDULES, ALERTS as SEED_ALERTS } from "../src/data/prasa";
@@ -153,6 +155,13 @@ app.post("/api/hf-proxy", async (req, res) => {
 });
 app.use("/api/lost-found", lostFoundRouter);
 app.use("/api/safety", safetyRouter);
+app.use("/api/stations", stationSearchRouter);
+
+// GET /api/live-trains — serve scraped live trains
+app.get("/api/live-trains", async (_req, res) => {
+  const { trains } = await runScrape().catch(() => ({ trains: [] }));
+  res.json(trains);
+});
 
 // ── Admin: Lost & Found ────────────────────────────────────────────────────────
 app.get("/api/admin/lost-found", requireAuth, async (_req, res) => {
@@ -206,12 +215,11 @@ app.patch("/api/admin/lost-found/:id", requireAuth, async (req, res) => {
   // If status changed to "matched", send email notification to user
   if (status === "matched" && item.status !== "matched") {
     try {
-      const { sendEmail } = require("./mailer");
       await sendEmail({
         to: item.contact,
         subject: "Item Found - PRASA Lost & Found",
-        html: "", // Not used when templateId is provided
-        templateId: "template_item_found",
+        html: "",
+        templateId: process.env.EMAILJS_FOUND_TEMPLATE_ID,
         templateParams: {
           to_email: item.contact,
           contact_ref: item.contact_ref,

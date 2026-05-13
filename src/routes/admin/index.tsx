@@ -494,13 +494,16 @@ function LostFoundTab({ items, onRefresh }: { items: LostFoundItem[]; onRefresh:
   const openItems = items.filter((item) => item.status === "open").length;
   const matchedItems = items.filter((item) => item.status === "matched").length;
 
+  const [updateError, setUpdateError] = useState("");
+
   async function updateStatus(id: string, status: "open" | "matched") {
     setUpdating(id);
+    setUpdateError("");
     try {
       await api.updateLostFoundStatus(id, status);
       onRefresh();
     } catch (error) {
-      console.error("Failed to update status:", error);
+      setUpdateError((error as Error).message ?? "Failed to update status");
     } finally {
       setUpdating(null);
     }
@@ -517,6 +520,12 @@ function LostFoundTab({ items, onRefresh }: { items: LostFoundItem[]; onRefresh:
         <StatCard label="Open Items" value={openItems} color="bg-warning" />
         <StatCard label="Found Items" value={matchedItems} color="bg-success" />
       </div>
+
+      {updateError && (
+        <p className="rounded-sm border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          {updateError} — your session may have expired, please <a href="/admin/login" className="underline">log in again</a>.
+        </p>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
