@@ -60,10 +60,6 @@ function HomePage() {
 
           <div className="relative">
             <div className="absolute -inset-3 rounded-md bg-destructive/20 blur-2xl" aria-hidden />
-            <div className="relative">
-              <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider opacity-90">Plan your trip</h2>
-              <RouteSearchForm onSearch={handleSearch} />
-            </div>
           </div>
         </div>
       </section>

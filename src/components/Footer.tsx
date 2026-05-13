@@ -18,7 +18,6 @@ export function Footer() {
         <div>
           <h4 className="mb-3 text-sm font-semibold uppercase tracking-wider">Travel</h4>
           <ul className="space-y-2 text-sm opacity-90">
-            <li>Plan a trip</li>
             <li>Live trains</li>
             <li>Fares & tickets</li>
             <li>Stations</li>
