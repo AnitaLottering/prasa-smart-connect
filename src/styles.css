@@ -155,3 +155,8 @@
     color: var(--color-foreground);
   }
 }
+
+/* Ensure Google Maps autocomplete dropdown appears above the map */
+.pac-container {
+  z-index: 9999 !important;
+}
